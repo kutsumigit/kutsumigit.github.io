@@ -160,7 +160,13 @@ var path = sankey.link();
       .attr("d", function (d) { return d.d })
       .attr("fill", function (d) { return d.color })
 	  .attr("data-toggle","tooltip")
-	  .attr("title",function(d) { return  d.name + "\n" + d.percent + "%"});
+	  .attr("title",function(d) { return  d.name + "\n" + d.percent + "%"})
+	  .style('opacity',0)
+	 .transition()
+		.delay(function(d, i) { return i * 500 })
+    .duration(500)
+    .style('width', function(d) { return (d * 150) + 'px'; })
+    .style('opacity', 1) 
 
     /*
   link.append("title")
@@ -178,8 +184,14 @@ var path = sankey.link();
       .attr("height", function(d) { return d.dy; })
       .attr("width", sankey.nodeWidth())
       .style("fill", function(d) { return d.color})
+	  .style('opacity',0)
       .style("stroke", function(d) { return d3.rgb(d.color).darker(2); })
-      .attr("title",function(d) { return d.name + "\n" + d.percent + "%"});
+      .attr("title",function(d) { return d.name + "\n" + d.percent + "%"})
+	   .transition()
+		.delay(function(d, i) { return i * 500 })
+    .duration(500)
+    .style('width', function(d) { return (d * 150) + 'px'; })
+    .style('opacity', 1)
       //.text(function(d) { return d.name + "\n"});
 
 /*  
