@@ -1,0 +1,305 @@
+<html>
+<head>
+<script src="jquery-3.1.1.min.js"></script>
+<script src="d3.v4.js"></script>
+<script src="moment.min.js"></script>
+
+</head>
+<body onload="load();">
+
+<H1>Strabismus Chart</H1>
+Each box represents a calendar date. Shaded boxes are weekends.<br/><br/>
+
+Each colored thick line is a measurement. Its vertical position indicates the time of the measurement. Since she is mostly awake between 9AM and 9PM, bottom edge = 9AM, middle line (dotted) = 3PM, and top edge = 9PM.
+<br/>
+<br/>
+
+<table>
+<tr><td>Good</td><td style="background-color:green;width:30px;"></td></tr>
+<tr><td>Middle</td><td style="background-color:orange"></td></tr>
+<tr><td>Bad</td><td style="background-color:red"></td></tr>
+</table>
+<br/>
+<br/>
+Blue line is the time she put eye patches, though we did not record the time everyday. Click below to hide it.
+<br/><input type="checkbox" onclick="hidePatches(this);"/> Hide eye patch lines
+<br/><br/>
+*Note that since they have been on road since 15th, the measurement might not be as consistent as prior.
+<br/><br/>
+<svg width="700" height="1000">
+</svg>
+
+<script>
+
+var svg = d3.select("svg"),
+    margin = {top: 20, right: 20, bottom: 30, left: 60},
+    width = +svg.attr("width") - margin.left - margin.right,
+    height = +svg.attr("height") - margin.top - margin.bottom;
+
+function getX(datetime) {
+	return margin.left + datetime.day() *  width/7;
+}
+
+function getY(weekNumber,boxHeight) {
+	return weekNumber * boxHeight;
+}
+
+function getXForDots(datetime,boxWidth,dotWidth) {
+	return margin.left + datetime.day() *  width/7 + boxWidth/2 - dotWidth/2;
+}
+
+function getYForDots(d,boxHeight,hourIncrement,strokeWidth,labelHeight) {
+	hour = d.datetime.get('hour');
+
+	if (hour < 9)
+		hour = 9;
+	else if (hour > 21)
+		hour = 21;
+
+	return d.weekNumber * boxHeight + (hour-9) * hourIncrement + strokeWidth + labelHeight;
+}
+
+function getXForPatches(d,boxWidth,dotWidth) {
+	if (d.Level == 4)
+		return margin.left + d.datetime.day() *  width/7;
+	else return 0;
+}
+
+function getFill(datetime)
+{
+	if (datetime.day() == 0 || datetime.day() == 6)
+		return .01;
+	else
+		return 0;
+}
+
+function getColor(datetime)
+{
+	if (datetime.day() == 0 || datetime.day() == 6)
+		return "blue";
+	else
+		return "white";
+}
+
+function getColorForDots(d)
+{
+	if (d.Level == "1")
+		return "red";
+	else if (d.Level == "2")
+		return "orange";
+	else if (d.Level == "3")
+		return "green";
+}
+
+function getTickY(d,boxHeight, adjustedBoxHeight,strokeWidth, labelHeight,isText){
+  var baseline = d.week * boxHeight + labelHeight + ((isText) ? 3 : 0);
+  if (d.tickIdx == 0)
+    return baseline;
+  else if (d.tickIdx ==1)
+  {
+    return baseline + adjustedBoxHeight / 2 + strokeWidth*2;
+  } else {
+    return baseline + adjustedBoxHeight + strokeWidth*2;
+  }
+}
+
+function getTickText(d){
+  if (d.week != 0 && d.week != 1)
+    return "";
+  if (d.tickIdx == 0)
+    return "9AM";
+  else if (d.tickIdx ==1)
+  {
+    return "3PM";
+  } else {
+    return "9PM";
+  }
+}
+
+function getTickWidth(d,marginleft,boxWidth) {
+  if (d.tickIdx == 0){
+    return marginleft;
+  } else if (d.tickIdx ==1)
+  {
+    return marginleft + boxWidth*7;
+  } else {
+    return marginleft;
+  }
+}
+
+function getDateText(d){
+  return (d.datetime.month()+1) + "/"  + d.datetime.date();
+}
+
+function load() {
+
+	d3.csv("EyeCSV.csv", function(error, data) {
+
+		//convert to data
+		data.forEach(function(d) {
+			d.datetime = moment(new Date(d.Date + " " + d.Time + ":00:00"));
+		});
+
+		//calculate many weeks I must display
+		var minSunday = data[0].datetime.clone().startOf('week'); //d3.min(data, function(d) { return d.datetime;} );
+		var maxSunday = data[data.length-1].datetime.clone().startOf('week');//d3.max(data, function(d) { return d.datetime;} );
+		var numOfWeeks = maxSunday.diff(minSunday, 'week') +1;
+
+    // put weekNumber which you will need to decide on y coordinate.
+		data.forEach(function(d) {
+			d.weekNumber = d.datetime.diff(minSunday,'week');
+		});
+
+		//determine height of each boxes base don number of weeks.
+		boxHeight = height/numOfWeeks;
+		boxWidth = width/7;
+
+		//height of label where we put date
+		labelHeight = 20;
+
+		//strokewidth
+		strokeWidth = 1;
+		//for placing colored dots
+		adjustedBoxHeight = boxHeight - strokeWidth*2 - labelHeight -1;
+
+		hourIncrement  = adjustedBoxHeight/12; //we show 12 hours incremenet only since she is up for only 12 hours
+		dotHeight = 2;
+		dotWidth = boxWidth * .2;
+
+		boundaryColor = "gray";
+    strokeOpacity  = .1;
+
+		var g = svg.append("g");
+
+/********** display box for each day ********/
+
+    //box to display date in text
+		g.selectAll(".label")
+			.data(data)
+			.enter().append("rect")
+			  .attr("class", "label")
+			  .attr("x", function(d) { return getX(d.datetime); })
+			  .attr("y", function(d) { return getY(d.weekNumber,boxHeight); })
+			  .attr("fill", "white")
+			  .attr("stroke",boundaryColor)
+        .attr("stroke-opacity",strokeOpacity)
+			  .attr("stroke-width",strokeWidth)
+			  .attr("width", boxWidth)
+			  .attr("height", labelHeight);
+
+    //display date in text
+    g.selectAll(".dateText")
+        .data(data)
+        .enter().append("text")
+        .attr("class","dateText")
+        .attr("x", function(d) { return getX(d.datetime) + boxWidth-3; })
+        .attr("y", function(d) { return getY(d.weekNumber,boxHeight) + 12; })
+        .attr("font-size","10px")
+        .attr("text-anchor","end")
+        .text(function(d) {return getDateText(d);});
+
+    //box for each day
+		g.selectAll(".bar")
+			.data(data)
+			.enter().append("rect")
+			  .attr("class", "bar")
+			  .attr("x", function(d) { return getX(d.datetime); })
+			  .attr("y", function(d) { return getY(d.weekNumber,boxHeight); })
+			  .attr("fill", function(d) {return getColor(d.datetime);})
+			  .attr("stroke",boundaryColor)
+			  .attr("fill-opacity", function(d) {return getFill(d.datetime);})
+        .attr("stroke-opacity",strokeOpacity)
+			  .attr("stroke-width",strokeWidth)
+			  .attr("width", boxWidth)
+			  .attr("height", boxHeight);
+
+
+
+/*********draw ticks and scale label *****/
+    //get num of weeks so we can put ticks
+    var maxWeeks = d3.max(data, function(d) { return d.weekNumber;} );
+    var idx = 0;
+    var weeksArray = new Array();
+    for (i = 0;i <= maxWeeks; i++) { //will create 3 ticker per day (9AM, 3PM, 9PM)
+      weeksArray.push({week: i, tickIdx: 0 });
+      weeksArray.push({week: i, tickIdx: 1 });
+      weeksArray.push({week: i, tickIdx: 2 });
+    }
+      //display ticks for time
+      g.selectAll(".tick")
+        .data(weeksArray)
+        .enter().append("line")
+          .attr("class", "tick")
+          .attr("x1", function(d) { return margin.left-20; })
+          .attr("y1", function(d,i) { return getTickY(d,boxHeight, adjustedBoxHeight,strokeWidth,labelHeight); })
+          .attr("stroke","lightgray")
+          .attr("x2", margin.left)
+          .attr("y2", function(d,i) { return getTickY(d,boxHeight, adjustedBoxHeight,strokeWidth,labelHeight); });
+
+      //dotted line for 3PM
+      g.selectAll(".tickDotted")
+        .data(weeksArray)
+        .enter().append("line")
+          .attr("class", "tickDotted")
+          .attr("x1", function(d) { return margin.left; })
+          .attr("y1", function(d,i) { return getTickY(d,boxHeight, adjustedBoxHeight,strokeWidth,labelHeight); })
+          .attr("stroke","lightgray")
+          .attr("stroke-dasharray","5,5")
+          .attr("x2", function (d){return getTickWidth(d,margin.left,boxWidth);} )
+          .attr("y2", function(d,i) { return getTickY(d,boxHeight, adjustedBoxHeight,strokeWidth,labelHeight); });
+
+      //display text indicating time
+      g.selectAll(".tickText")
+          .data(weeksArray)
+          .enter().append("text")
+          .attr("class","tickText")
+          .attr("x", function(d) { return margin.left-50; })
+          .attr("y", function(d,i) { return getTickY(d,boxHeight, adjustedBoxHeight,strokeWidth,labelHeight,true); })
+          .attr("font-size","10px")
+          .attr("text-anchor","start")
+          .text(function(d) {return getTickText(d);})
+
+/****** draw dots for each data ******/
+
+  //draw eye patch time
+  g.selectAll(".patch")
+	.data(data)
+	.enter().append("line")
+	.filter(function(d) { return d.Level == 4 })
+	  .attr("class", "patch")
+	  .attr("x1", function(d) { return getXForPatches(d,boxWidth,dotWidth);})
+      .attr("y1", function(d) { return getYForDots(d,boxHeight,hourIncrement,strokeWidth, labelHeight); })
+	  .attr("stroke","blue")
+	  .attr("x2", function(d) { return getXForPatches(d,boxWidth,dotWidth) + boxWidth; })
+	  .attr("y2", function(d) { return getYForDots(d,boxHeight,hourIncrement,strokeWidth, labelHeight); })
+
+//data
+  g.selectAll(".dots")
+    .data(data)
+    .enter().append("rect")
+	.filter(function(d) { return (d.Level == 1 || d.Level == 2 || d.Level == 3) })
+      .attr("class", "dots")
+      .attr("x", function(d) { return getXForDots(d.datetime, boxWidth,dotWidth); })
+      .attr("y", function(d) { return getYForDots(d,boxHeight,hourIncrement,strokeWidth, labelHeight); })
+      .attr("fill", function(d) {return getColorForDots(d);})
+      .attr("stroke",function(d) {return getColorForDots(d);})
+      .attr("width", dotWidth)
+      .attr("height", dotHeight);
+
+
+	});
+
+}
+
+function hidePatches(obj)
+{
+	if (obj.checked){
+		$(".patch").hide();
+	} else {
+		$(".patch").show();
+
+	}
+}
+</script>
+</body>
+</html>
